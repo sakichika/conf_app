@@ -1,11 +1,10 @@
 {
   "name": "conference-app",
   "version": "1.0.0",
-  "description": "Conference program viewing application",
-  "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "build": "node db_init.js && node db_seed.js"
+    "build": "node db_init.js && node db_seed.js",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "bcrypt": "^5.1.0",

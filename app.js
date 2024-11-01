@@ -5,8 +5,9 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcrypt');
 const path = require('path');
 
+const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'));
+
 const app = express();
-const db = new sqlite3.Database('./database.sqlite');
 
 // ポート設定
 const port = process.env.PORT || 3000;
