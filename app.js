@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./database.sqlite');
+const db = new sqlite3.Database('/data/database.sqlite');
 
 // 静的ファイルを提供
 app.use(express.static('public'));
