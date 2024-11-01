@@ -23,6 +23,10 @@ const redisClient = redis.createClient({
 
 redisClient.on('error', (err) => console.log('Redis Client Error', err));
 
+// Redis クライアントの接続とサーバーの起動
+redisClient.on('connect', () => {
+  console.log('Connected to Redis');
+
 // セッションの設定
 app.use(session({
   store: new RedisStore({ client: redisClient }),
@@ -60,14 +64,22 @@ app.post('/login', (req, res) => {
 
   db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
     if (err) {
+      console.error('Database error:', err);
       return res.status(500).send('サーバーエラーが発生しました。');
     }
-    if (user && bcrypt.compareSync(password, user.password)) {
-      req.session.userId = user.id;
-      res.redirect('/');
+    if (user) {
+      const passwordMatches = bcrypt.compareSync(password, user.password);
+      if (passwordMatches) {
+        req.session.userId = user.id;
+        console.log('Login successful for user:', username);
+        return res.redirect('/');
+      } else {
+        console.warn('Password mismatch for user:', username);
+      }
     } else {
-      res.send('ユーザー名またはパスワードが間違っています。');
+      console.warn('User not found:', username);
     }
+    res.send('ユーザー名またはパスワードが間違っています。');
   });
 });
 
@@ -127,3 +139,6 @@ app.get('/api/sessions/:id', (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+// Redis クライアントの接続開始
+redisClient.connect();
