@@ -12,9 +12,7 @@ const sqlite3 = require('sqlite3').verbose();
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+// 最初の app.listen() を削除しました
 
 // SQLite データベースへの接続
 const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'));
@@ -151,4 +149,3 @@ app.get('/api/sessions/:id', (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
-
