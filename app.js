@@ -1,6 +1,6 @@
 const express = require('express');
 const session = require('express-session');
-const RedisStore = require('connect-redis')(session); // 追加
+const { default: RedisStore } = require('connect-redis');
 const { createClient } = require('redis'); // 追加
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
