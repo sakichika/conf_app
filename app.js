@@ -12,34 +12,114 @@ const sqlite3 = require('sqlite3').verbose();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 最初の app.listen() を削除しました
+// SQLite データベースへの接続と初期化
+const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'), (err) => {
+  if (err) {
+    console.error('Failed to connect to SQLite database:', err);
+  } else {
+    console.log('Connected to SQLite database.');
 
-// SQLite データベースへの接続
-const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'));
+    // データベースの初期化とシードデータの挿入
+    db.serialize(() => {
+      // **テーブルの削除**
+      db.run(`DROP TABLE IF EXISTS users`);
+      db.run(`DROP TABLE IF EXISTS sessions`);
+      db.run(`DROP TABLE IF EXISTS presentations`);
+      db.run(`DROP TABLE IF EXISTS speakers`);
 
-// Redis クライアントの設定
-const redisClient = redis.createClient({
-  url: process.env.REDIS_URL,
-  tls: {
-    rejectUnauthorized: false,
-  },
+      // テーブルの作成
+      db.run(`CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT
+      )`);
+
+      db.run(`CREATE TABLE sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        description TEXT,
+        start_time TEXT,
+        end_time TEXT
+      )`);
+
+      db.run(`CREATE TABLE presentations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER,
+        speaker_id INTEGER,
+        title TEXT,
+        description TEXT,
+        FOREIGN KEY(session_id) REFERENCES sessions(id),
+        FOREIGN KEY(speaker_id) REFERENCES speakers(id)
+      )`);
+
+      db.run(`CREATE TABLE speakers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        bio TEXT
+      )`);
+
+      // サンプルデータの挿入
+      const hashedPassword = bcrypt.hashSync('password', 10);
+      db.run(`INSERT INTO users (username, password) VALUES (?, ?)`, ['admin', hashedPassword]);
+
+      // セッションデータの挿入
+      db.run(`INSERT INTO sessions (id, title, description, start_time, end_time) VALUES (?, ?, ?, ?, ?)`, [
+        1,
+        'Opening Ceremony',
+        'Welcome to the conference!',
+        '2023-01-01 09:00',
+        '2023-01-01 10:00'
+      ]);
+
+      // スピーカーデータの挿入
+      db.run(`INSERT INTO speakers (id, name, bio) VALUES (?, ?, ?)`, [
+        1,
+        'John Doe',
+        'An expert in AI technologies.'
+      ]);
+
+      // プレゼンテーションデータの挿入
+      db.run(`INSERT INTO presentations (id, session_id, speaker_id, title, description) VALUES (?, ?, ?, ?, ?)`, [
+        1,
+        1,
+        1,
+        'The Future of AI',
+        'Exploring the advancements in AI.'
+      ]);
+
+      console.log('Database initialized and seeded.');
+    });
+  }
 });
 
-redisClient.on('error', (err) => {
-  console.error('Redis Client Error', err);
-});
+// セッションストアの設定
+let sessionStore;
+if (process.env.REDIS_URL) {
+  // Redis クライアントの設定
+  const redisClient = redis.createClient({
+    url: process.env.REDIS_URL,
+    tls: {
+      rejectUnauthorized: false,
+    },
+  });
 
-redisClient.on('connect', () => {
-  console.log('Connected to Redis');
-});
+  redisClient.on('error', (err) => {
+    console.error('Redis Client Error', err);
+  });
 
-redisClient.on('ready', () => {
-  console.log('Redis client is ready');
-});
+  redisClient.on('connect', () => {
+    console.log('Connected to Redis');
+  });
+
+  sessionStore = new RedisStore({ client: redisClient });
+} else {
+  console.warn('REDIS_URL is not set. Using default MemoryStore.');
+  sessionStore = new session.MemoryStore();
+}
 
 // セッションの設定
 app.use(session({
-  store: new RedisStore({ client: redisClient }),
+  store: sessionStore,
   secret: process.env.SESSION_SECRET || 'your_secret_key',
   resave: false,
   saveUninitialized: false,
@@ -115,6 +195,7 @@ app.get('/api/sessions', (req, res) => {
     ORDER BY sessions.start_time
   `, [], (err, sessions) => {
     if (err) {
+      console.error('Database error:', err);
       return res.status(500).send('データベースエラーが発生しました。');
     }
     res.json(sessions);
@@ -126,6 +207,7 @@ app.get('/api/sessions/:id', (req, res) => {
   const sessionId = req.params.id;
   db.get('SELECT * FROM sessions WHERE id = ?', [sessionId], (err, session) => {
     if (err) {
+      console.error('Database error:', err);
       return res.status(500).send('データベースエラーが発生しました。');
     }
     if (!session) {
@@ -138,6 +220,7 @@ app.get('/api/sessions/:id', (req, res) => {
       WHERE presentations.session_id = ?
     `, [sessionId], (err, presentations) => {
       if (err) {
+        console.error('Database error:', err);
         return res.status(500).send('データベースエラーが発生しました。');
       }
       res.json({ session, presentations });
