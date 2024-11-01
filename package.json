@@ -5,7 +5,6 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "postinstall": "node db_init.js && node db_seed.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.0",
@@ -13,7 +12,7 @@
     "connect-redis": "^6.1.3",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
-    "redis": "^3.1.2",
+    "redis": "^4.0.0",
     "sqlite3": "^5.1.6"
   },
   "engines": {
