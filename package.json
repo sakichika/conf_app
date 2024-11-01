@@ -1,12 +1,17 @@
 {
   "name": "conference-app",
   "version": "1.0.0",
+  "description": "Conference program viewing application",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "build": "node db_init.js && node db_seed.js"
   },
   "dependencies": {
+    "bcrypt": "^5.1.0",
+    "body-parser": "^1.20.2",
     "express": "^4.18.2",
-    "sqlite3": "^5.0.2"
+    "express-session": "^1.17.3",
+    "sqlite3": "^5.1.6"
   }
 }

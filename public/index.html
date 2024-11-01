@@ -13,18 +13,20 @@
     <ul id="session-list" class="list-group mt-3">
       <!-- セッションリストがここに表示されます -->
     </ul>
+    <div class="mt-3">
+      <a href="/logout" class="btn btn-secondary">ログアウト</a>
+    </div>
   </div>
 
   <!-- モーダルの構造 -->
   <div class="modal fade" id="sessionModal" tabindex="-1" aria-labelledby="sessionModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg"> <!-- モーダルを大きくするために modal-lg クラスを追加 -->
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="sessionModalLabel"></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
         </div>
         <div class="modal-body" id="sessionModalBody">
-          <!-- プレゼンテーションリストがここに表示されます -->
         </div>
       </div>
     </div>
@@ -36,9 +38,9 @@
     // セッションデータの取得と表示
     fetch('/api/sessions')
       .then(response => response.json())
-      .then(sessions => {
+      .then(data => {
         const sessionList = document.getElementById('session-list');
-        sessions.forEach(session => {
+        data.forEach(session => {
           const listItem = document.createElement('li');
           listItem.className = 'list-group-item';
           listItem.style.cursor = 'pointer';
@@ -47,31 +49,34 @@
             <div>開始時間: ${session.start_time}</div>
             <div>終了時間: ${session.end_time}</div>
           `;
-          listItem.addEventListener('click', () => showSessionDetail(session.id, session.title));
+          listItem.addEventListener('click', () => showSessionDetail(session.id));
           sessionList.appendChild(listItem);
         });
       });
 
     // セッション詳細を表示する関数
-    function showSessionDetail(sessionId, sessionTitle) {
-      fetch(`/api/sessions/${sessionId}/presentations`)
+    function showSessionDetail(sessionId) {
+      fetch(`/api/sessions/${sessionId}`)
         .then(response => response.json())
-        .then(presentations => {
-          document.getElementById('sessionModalLabel').textContent = sessionTitle;
-          const modalBody = document.getElementById('sessionModalBody');
-          modalBody.innerHTML = '';
+        .then(data => {
+          const session = data.session;
+          const presentations = data.presentations;
 
+          document.getElementById('sessionModalLabel').textContent = session.title;
+          let modalBodyContent = '';
           presentations.forEach(presentation => {
-            const presentationDiv = document.createElement('div');
-            presentationDiv.className = 'presentation mb-4';
-            presentationDiv.innerHTML = `
-              <h5>${presentation.title}</h5>
-              <p><strong>発表者:</strong> ${presentation.speaker_name} (${presentation.affiliation || '所属未定'})</p>
-              ${presentation.co_authors ? `<p><strong>共著者:</strong> ${presentation.co_authors}</p>` : ''}
-              <p><strong>要旨:</strong><br>${presentation.abstract}</p>
+            modalBodyContent += `
+              <div>
+                <h5>${presentation.title}</h5>
+                <p><strong>発表者:</strong> ${presentation.speaker_name}</p>
+                <p><strong>共著者:</strong> ${presentation.co_authors || 'なし'}</p>
+                <p><strong>所属:</strong> ${presentation.affiliation || 'なし'}</p>
+                <p><strong>要旨:</strong> ${presentation.abstract}</p>
+              </div>
+              <hr>
             `;
-            modalBody.appendChild(presentationDiv);
           });
+          document.getElementById('sessionModalBody').innerHTML = modalBodyContent;
 
           const sessionModal = new bootstrap.Modal(document.getElementById('sessionModal'));
           sessionModal.show();
