@@ -1,22 +1,39 @@
 const express = require('express');
 const session = require('express-session');
+const RedisStore = require('connect-redis')(session); // 追加
+const { createClient } = require('redis'); // 追加
 const bodyParser = require('body-parser');
-const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcrypt');
 const path = require('path');
-
-const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'));
+const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
+const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'));
 
 // ポート設定
 const port = process.env.PORT || 3000;
 
+// Redis クライアントの設定
+let redisClient;
+(async () => {
+  redisClient = createClient({
+    url: process.env.REDIS_URL, // Render の環境変数に設定
+    // password: 'your_redis_password', // パスワードが必要な場合
+  });
+  redisClient.on('error', (err) => console.log('Redis Client Error', err));
+  await redisClient.connect();
+})();
+
 // セッションの設定
 app.use(session({
-  secret: 'your_secret_key', // 適切な秘密鍵に変更してください
+  store: new RedisStore({ client: redisClient }),
+  secret: process.env.SESSION_SECRET || 'your_secret_key', // 環境変数で設定
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  cookie: {
+    secure: false, // HTTPS を使用する場合は true に設定
+    maxAge: 1000 * 60 * 60 // セッションの有効期限（ミリ秒）
+  }
 }));
 
 // ボディパーサーの設定
