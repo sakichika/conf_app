@@ -1,7 +1,18 @@
+// db_init.js
+
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./database.sqlite');
+const path = require('path');
+
+// データベースファイルへのパスを指定
+const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'));
 
 db.serialize(() => {
+  // 既存のテーブルを削除
+  db.run(`DROP TABLE IF EXISTS presentations`);
+  db.run(`DROP TABLE IF EXISTS sessions`);
+  db.run(`DROP TABLE IF EXISTS speakers`);
+  db.run(`DROP TABLE IF EXISTS users`);
+
   // セッションテーブルの作成
   db.run(`CREATE TABLE IF NOT EXISTS sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
