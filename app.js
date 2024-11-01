@@ -25,7 +25,8 @@ redisClient.on('error', (err) => console.log('Redis Client Error', err));
 
 // Redis クライアントの接続とサーバーの起動
 redisClient.on('connect', () => {
-  console.log('Connected to Redis');
+  console.log('Connected to Redis')
+});
 
 // セッションの設定
 app.use(session({
