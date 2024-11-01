@@ -9,8 +9,23 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
+// 未処理の例外をキャッチ
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 const app = express();
 const port = process.env.PORT || 3000;
+
+// リクエストごとのログを追加
+app.use((req, res, next) => {
+  console.log(`Received request: ${req.method} ${req.url}`);
+  next();
+});
 
 // SQLite データベースへの接続と初期化
 const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'), (err) => {
@@ -21,7 +36,7 @@ const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'), (err) =
 
     // データベースの初期化とシードデータの挿入
     db.serialize(() => {
-      // **テーブルの削除**
+      // テーブルの削除
       db.run(`DROP TABLE IF EXISTS users`);
       db.run(`DROP TABLE IF EXISTS sessions`);
       db.run(`DROP TABLE IF EXISTS presentations`);
@@ -37,55 +52,138 @@ const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'), (err) =
       db.run(`CREATE TABLE sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
-        description TEXT,
         start_time TEXT,
         end_time TEXT
+      )`);
+
+      db.run(`CREATE TABLE speakers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT
       )`);
 
       db.run(`CREATE TABLE presentations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id INTEGER,
-        speaker_id INTEGER,
         title TEXT,
-        description TEXT,
+        abstract TEXT,
+        speaker_id INTEGER,
+        co_authors TEXT,
+        affiliation TEXT,
         FOREIGN KEY(session_id) REFERENCES sessions(id),
         FOREIGN KEY(speaker_id) REFERENCES speakers(id)
       )`);
 
-      db.run(`CREATE TABLE speakers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        bio TEXT
-      )`);
-
-      // サンプルデータの挿入
-      const hashedPassword = bcrypt.hashSync('password', 10);
-      db.run(`INSERT INTO users (username, password) VALUES (?, ?)`, ['admin', hashedPassword]);
+      // カスタムデータの定義
+      const sessionsData = [
+        {
+          title: 'セッション1',
+          start_time: '2022-01-01 09:00',
+          end_time: '2022-01-01 10:00',
+          presentations: [
+            {
+              title: '発表タイトル1',
+              abstract: '発表要旨1の本文',
+              speaker_name: '講演者A',
+              co_authors: '共著者A1, 共著者A2',
+              affiliation: '所属A'
+            },
+            {
+              title: '発表タイトル2',
+              abstract: '発表要旨2の本文',
+              speaker_name: '講演者B',
+              co_authors: '共著者B1, 共著者B2',
+              affiliation: '所属B'
+            },
+            // 他の発表を追加可能
+          ]
+        },
+        {
+          title: 'セッション2',
+          start_time: '2022-01-01 10:30',
+          end_time: '2022-01-01 11:30',
+          presentations: [
+            {
+              title: '発表タイトル3',
+              abstract: '発表要旨3の本文',
+              speaker_name: '講演者C',
+              co_authors: '共著者C1',
+              affiliation: '所属C'
+            },
+            // 他の発表を追加可能
+          ]
+        },
+        // 他のセッションを追加可能
+      ];
 
       // セッションデータの挿入
-      db.run(`INSERT INTO sessions (id, title, description, start_time, end_time) VALUES (?, ?, ?, ?, ?)`, [
-        1,
-        'Opening Ceremony',
-        'Welcome to the conference!',
-        '2023-01-01 09:00',
-        '2023-01-01 10:00'
-      ]);
+      const sessionStmt = db.prepare(`INSERT INTO sessions (title, start_time, end_time) VALUES (?, ?, ?)`);
+      sessionsData.forEach(session => {
+        sessionStmt.run(session.title, session.start_time, session.end_time, (err) => {
+          if (err) {
+            console.error('Error inserting session:', err);
+          }
+        });
+      });
+      sessionStmt.finalize();
 
       // スピーカーデータの挿入
-      db.run(`INSERT INTO speakers (id, name, bio) VALUES (?, ?, ?)`, [
-        1,
-        'John Doe',
-        'An expert in AI technologies.'
-      ]);
+      const speakerSet = new Set();
+      sessionsData.forEach(session => {
+        session.presentations.forEach(presentation => {
+          speakerSet.add(presentation.speaker_name);
+        });
+      });
 
-      // プレゼンテーションデータの挿入
-      db.run(`INSERT INTO presentations (id, session_id, speaker_id, title, description) VALUES (?, ?, ?, ?, ?)`, [
-        1,
-        1,
-        1,
-        'The Future of AI',
-        'Exploring the advancements in AI.'
-      ]);
+      const speakerStmt = db.prepare(`INSERT INTO speakers (name) VALUES (?)`);
+      const speakerIdMap = {};
+      let speakerIdCounter = 1;
+      speakerSet.forEach(speakerName => {
+        speakerStmt.run(speakerName, (err) => {
+          if (err) {
+            console.error('Error inserting speaker:', err);
+          }
+        });
+        speakerIdMap[speakerName] = speakerIdCounter;
+        speakerIdCounter++;
+      });
+      speakerStmt.finalize();
+
+      // 発表データの挿入
+      const presentationStmt = db.prepare(`
+        INSERT INTO presentations (session_id, title, abstract, speaker_id, co_authors, affiliation)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      sessionsData.forEach((session, sessionIndex) => {
+        const sessionId = sessionIndex + 1; // セッションIDは1から開始
+        session.presentations.forEach(presentation => {
+          const speakerId = speakerIdMap[presentation.speaker_name];
+          presentationStmt.run(
+            sessionId,
+            presentation.title,
+            presentation.abstract,
+            speakerId,
+            presentation.co_authors,
+            presentation.affiliation,
+            (err) => {
+              if (err) {
+                console.error('Error inserting presentation:', err);
+              }
+            }
+          );
+        });
+      });
+      presentationStmt.finalize();
+
+      // ユーザーデータの挿入（パスワードはハッシュ化）
+      const userStmt = db.prepare(`INSERT INTO users (username, password) VALUES (?, ?)`);
+      const hashedPassword = bcrypt.hashSync("password123", 10);
+      userStmt.run("admin", hashedPassword, (err) => {
+        if (err) {
+          console.error('Error inserting user:', err);
+        }
+      });
+      userStmt.finalize();
 
       console.log('Database initialized and seeded.');
     });
@@ -104,42 +202,132 @@ if (process.env.REDIS_URL) {
   });
 
   redisClient.on('error', (err) => {
-    console.error('Redis Client Error', err);
+    console.error('Redis Client Error:', err);
   });
 
   redisClient.on('connect', () => {
     console.log('Connected to Redis');
   });
 
-  sessionStore = new RedisStore({ client: redisClient });
+  redisClient.on('ready', () => {
+    console.log('Redis client is ready');
+  });
+
+  // Redis クライアントの接続を待ってからセッションストアを設定
+  redisClient.connect().then(() => {
+    sessionStore = new RedisStore({ client: redisClient });
+
+    // セッションの設定
+    app.use(session({
+      store: sessionStore,
+      secret: process.env.SESSION_SECRET || 'your_secret_key',
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: false,
+        maxAge: 1000 * 60 * 60,
+      },
+    }));
+
+    // アプリケーションのルートやミドルウェアを設定
+
+    // ボディパーサーの設定
+    app.use(bodyParser.urlencoded({ extended: false }));
+    app.use(bodyParser.json());
+
+    // 認証が必要なルートに適用するミドルウェア
+    function requireAuth(req, res, next) {
+      if (req.session && req.session.userId) {
+        next();
+      } else {
+        res.redirect('/login');
+      }
+    }
+
+    // 以下、ルートハンドラやエラーハンドリングミドルウェアを追加
+
+    // サーバーの起動
+    app.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    });
+  }).catch((err) => {
+    console.error('Failed to connect to Redis:', err);
+    // フォールバックとして MemoryStore を使用
+    console.warn('Using default MemoryStore for session management.');
+
+    sessionStore = new session.MemoryStore();
+
+    // セッションの設定
+    app.use(session({
+      store: sessionStore,
+      secret: process.env.SESSION_SECRET || 'your_secret_key',
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: false,
+        maxAge: 1000 * 60 * 60,
+      },
+    }));
+
+    // アプリケーションのルートやミドルウェアを設定
+
+    // ボディパーサーの設定
+    app.use(bodyParser.urlencoded({ extended: false }));
+    app.use(bodyParser.json());
+
+    // 認証が必要なルートに適用するミドルウェア
+    function requireAuth(req, res, next) {
+      if (req.session && req.session.userId) {
+        next();
+      } else {
+        res.redirect('/login');
+      }
+    }
+
+    // 以下、ルートハンドラやエラーハンドリングミドルウェアを追加
+
+    // サーバーの起動
+    app.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    });
+  });
 } else {
   console.warn('REDIS_URL is not set. Using default MemoryStore.');
   sessionStore = new session.MemoryStore();
-}
 
-// セッションの設定
-app.use(session({
-  store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'your_secret_key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: false,
-    maxAge: 1000 * 60 * 60,
-  },
-}));
+  // セッションの設定
+  app.use(session({
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET || 'your_secret_key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false,
+      maxAge: 1000 * 60 * 60,
+    },
+  }));
 
-// ボディパーサーの設定
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+  // アプリケーションのルートやミドルウェアを設定
 
-// 認証が必要なルートに適用するミドルウェア
-function requireAuth(req, res, next) {
-  if (req.session && req.session.userId) {
-    next();
-  } else {
-    res.redirect('/login');
+  // ボディパーサーの設定
+  app.use(bodyParser.urlencoded({ extended: false }));
+  app.use(bodyParser.json());
+
+  // 認証が必要なルートに適用するミドルウェア
+  function requireAuth(req, res, next) {
+    if (req.session && req.session.userId) {
+      next();
+    } else {
+      res.redirect('/login');
+    }
   }
+
+  // 以下、ルートハンドラやエラーハンドリングミドルウェアを追加
+
+  // サーバーの起動
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
 }
 
 // ログインページの表示
@@ -177,6 +365,7 @@ app.post('/login', (req, res) => {
 app.get('/logout', (req, res) => {
   req.session.destroy(err => {
     if (err) {
+      console.error('Session destruction error:', err);
       return res.status(500).send('サーバーエラーが発生しました。');
     }
     res.redirect('/login');
@@ -189,11 +378,7 @@ app.use('/', requireAuth, express.static('public'));
 
 // セッション一覧を取得するAPI
 app.get('/api/sessions', (req, res) => {
-  db.all(`
-    SELECT sessions.*
-    FROM sessions
-    ORDER BY sessions.start_time
-  `, [], (err, sessions) => {
+  db.all(`SELECT * FROM sessions ORDER BY start_time`, [], (err, sessions) => {
     if (err) {
       console.error('Database error:', err);
       return res.status(500).send('データベースエラーが発生しました。');
@@ -228,7 +413,8 @@ app.get('/api/sessions/:id', (req, res) => {
   });
 });
 
-// サーバーの起動
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+// エラーハンドリングミドルウェア
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).send('Internal Server Error');
 });
