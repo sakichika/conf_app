@@ -283,12 +283,15 @@ async function main() {
     const username = req.body.username;
     const password = req.body.password;
 
+    console.log(`Attempting login for user: ${username}`);
+
     db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
       if (err) {
         console.error('Database error:', err);
         return res.status(500).send('サーバーエラーが発生しました。');
       }
       if (user) {
+        console.log(`User found: ${username}`);
         const passwordMatches = bcrypt.compareSync(password, user.password);
         if (passwordMatches) {
           req.session.userId = user.id;
@@ -296,11 +299,12 @@ async function main() {
           return res.redirect('/');
         } else {
           console.warn('Password mismatch for user:', username);
+          return res.send('ユーザー名またはパスワードが間違っています。');
         }
       } else {
         console.warn('User not found:', username);
+        return res.send('ユーザー名またはパスワードが間違っています。');
       }
-      res.send('ユーザー名またはパスワードが間違っています。');
     });
   });
 
