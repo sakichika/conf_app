@@ -1,9 +1,9 @@
 // app.js
 
 const express = require('express');
-const session = require('express-session');
-const RedisStore = require('connect-redis').default;
 const { createClient } = require('redis');
+const RedisStore = require('connect-redis').default;
+const session = require('express-session');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 const path = require('path');
@@ -11,18 +11,17 @@ const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 
 // 環境変数の設定
-const PORT = process.env.PORT || 10000; // Render ではポート10000が推奨される場合があります
+const PORT = process.env.PORT || 10000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // データベースファイルのパス設定
-const dbPath = NODE_ENV === 'production' ? '/tmp/database.sqlite' : path.join(__dirname, 'database.sqlite');
+const dbPath = process.env.NODE_ENV === 'production' ? '/tmp/database.sqlite' : path.join(__dirname, 'database.sqlite');
 
 // SQLite データベースへの接続と初期化
 let db;
 
 function initializeDatabase() {
   return new Promise((resolve, reject) => {
-    // データベースファイルが存在しない場合は作成
     const dbExists = fs.existsSync(dbPath);
 
     db = new sqlite3.Database(dbPath, (err) => {
@@ -67,7 +66,7 @@ function initializeDatabase() {
           )`);
 
           if (!dbExists) {
-            // データベースが新規作成された場合のみシードデータを挿入
+            // シードデータの挿入
             seedDatabase().then(() => {
               console.log('Database initialized and seeded.');
               resolve();
