@@ -1,7 +1,5 @@
 // app.js
 
-require('dotenv').config();
-
 const express = require('express');
 const { createClient } = require('redis');
 const RedisStore = require('connect-redis').default;
