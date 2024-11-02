@@ -33,32 +33,33 @@ app.use((req, res, next) => {
 let sessionStore;
 
 // Redis クライアントの設定
-async function initializeRedis() {
+function initializeRedis() {
   if (process.env.REDIS_URL) {
     const redisClient = createClient({
       url: process.env.REDIS_URL,
       socket: {
         tls: true,
         rejectUnauthorized: false,
+        connectTimeout: 5000, // 接続タイムアウトを5秒に設定
       },
     });
 
     redisClient.on('error', (err) => {
       console.error('Redis Client Error', err);
+      console.error('Using MemoryStore for session management.');
+      sessionStore = new session.MemoryStore();
     });
 
-    try {
-      await redisClient.connect();
+    redisClient.connect().then(() => {
       console.log('Connected to Redis');
-
       sessionStore = new RedisStore({
         client: redisClient,
       });
-    } catch (err) {
+    }).catch((err) => {
       console.error('Failed to connect to Redis:', err);
       console.error('Using MemoryStore for session management.');
       sessionStore = new session.MemoryStore();
-    }
+    });
   } else {
     console.warn('REDIS_URL is not set. Using MemoryStore.');
     sessionStore = new session.MemoryStore();
@@ -66,8 +67,13 @@ async function initializeRedis() {
 }
 
 // アプリケーションの初期化
-async function initializeApp() {
-  await initializeRedis();
+function initializeApp() {
+  initializeRedis(); // Redis 接続を開始（非同期）
+
+  // セッションストアが未設定の場合、MemoryStore を使用
+  if (!sessionStore) {
+    sessionStore = new session.MemoryStore();
+  }
 
   // セッションの設定
   app.use(session({
