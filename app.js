@@ -2,8 +2,8 @@
 
 const express = require('express');
 const { createClient } = require('redis');
-const RedisStore = require('connect-redis').default;
 const session = require('express-session');
+const RedisStore = require('connect-redis')(session);
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 const path = require('path');
@@ -223,6 +223,7 @@ async function initializeRedis() {
 
       return new RedisStore({
         client: redisClient,
+        // Optional: RedisStore の追加オプション
       });
     } catch (err) {
       console.error('Failed to connect to Redis:', err);
