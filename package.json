@@ -1,7 +1,7 @@
 {
-  "name": "your-app-name",
+  "name": "conf-app",
   "version": "1.0.0",
-  "description": "Your app description",
+  "description": "Conference Management Application",
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
@@ -12,8 +12,8 @@
     "connect-redis": "^6.0.0",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
-    "redis": "^4.0.0",
-    "sqlite3": "^5.0.11"
+    "redis": "^4.6.5",
+    "sqlite3": "^5.1.6"
   },
   "engines": {
     "node": ">=14"
