@@ -1,5 +1,7 @@
 // app.js
 
+require('dotenv').config();
+
 const express = require('express');
 const { createClient } = require('redis');
 const RedisStore = require('connect-redis').default;
@@ -199,10 +201,18 @@ async function initializeRedis() {
     const redisClient = createClient({
       url: process.env.REDIS_URL,
       socket: {
-        tls: true,
+        tls: false, // Internal接続の場合はfalse
         rejectUnauthorized: false,
-        connectTimeout: 5000 // 接続タイムアウトを5秒に設定
+        connectTimeout: 10000 // 接続タイムアウトを10秒に設定
       },
+    });
+
+    redisClient.on('connect', () => {
+      console.log('Redis client connected');
+    });
+
+    redisClient.on('ready', () => {
+      console.log('Redis client ready');
     });
 
     redisClient.on('error', (err) => {
